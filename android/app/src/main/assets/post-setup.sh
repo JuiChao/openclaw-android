@@ -210,12 +210,25 @@ mkdir -p "$NODE_DIR/bin"
 if [ -f "$NODE_DIR/bin/node.real" ] && "$NODE_DIR/bin/node" --version &>/dev/null; then
     INSTALLED_VER=$("$NODE_DIR/bin/node" --version 2>/dev/null || echo "")
     echo -e "  ${GREEN}[SKIP]${NC} Node.js already installed ($INSTALLED_VER)"
-    # Repair shebangs even on skip — they may not have been patched in older installs
-    for _bin in npm npx corepack; do
-        if [ -f "$NODE_DIR/bin/$_bin" ] && head -1 "$NODE_DIR/bin/$_bin" 2>/dev/null | grep -q '#!/usr/bin/env node'; then
-            sed -i "1s|#!/usr/bin/env node|#!$NODE_DIR/bin/node|" "$NODE_DIR/bin/$_bin"
-        fi
-    done
+    # Repair npm/npx wrappers — older installs may have shebang-only patch
+    # which fails because bin/npm's relative require('../lib/cli.js') doesn't resolve
+    if [ -f "$NODE_DIR/lib/node_modules/npm/bin/npm-cli.js" ] && ! grep -q 'npm-cli.js' "$NODE_DIR/bin/npm" 2>/dev/null; then
+        cat > "$NODE_DIR/bin/npm" << NPMWRAP
+#!$PREFIX/bin/bash
+exec "$NODE_DIR/bin/node" "$NODE_DIR/lib/node_modules/npm/bin/npm-cli.js" "\$@"
+NPMWRAP
+        chmod +x "$NODE_DIR/bin/npm"
+    fi
+    if [ -f "$NODE_DIR/lib/node_modules/npm/bin/npx-cli.js" ] && ! grep -q 'npx-cli.js' "$NODE_DIR/bin/npx" 2>/dev/null; then
+        cat > "$NODE_DIR/bin/npx" << NPXWRAP
+#!$PREFIX/bin/bash
+exec "$NODE_DIR/bin/node" "$NODE_DIR/lib/node_modules/npm/bin/npx-cli.js" "\$@"
+NPXWRAP
+        chmod +x "$NODE_DIR/bin/npx"
+    fi
+    if [ -f "$NODE_DIR/bin/corepack" ] && head -1 "$NODE_DIR/bin/corepack" 2>/dev/null | grep -q '#!/usr/bin/env node'; then
+        sed -i "1s|#!/usr/bin/env node|#!$NODE_DIR/bin/node|" "$NODE_DIR/bin/corepack"
+    fi
 else
     NODE_TAR="node-v${NODE_VERSION}-linux-arm64"
     echo "  Downloading Node.js v${NODE_VERSION} (~25MB)..."
@@ -265,15 +278,27 @@ exec "$GLIBC_LDSO" --library-path "$PREFIX/glibc/lib" "\$(dirname "\$0")/node.re
 WRAPPER
     chmod +x "$NODE_DIR/bin/node"
 
-    # Patch npm/npx/corepack shebangs
-    # Their shebang is #!/usr/bin/env node, but /usr/bin/env does not exist in Termux.
-    # Without this patch, direct execution (e.g. spawn/exec from OpenClaw) fails with:
-    #   bash: .../npx: /usr/bin/env: bad interpreter: No such file or directory
-    for _bin in npm npx corepack; do
-        if [ -f "$NODE_DIR/bin/$_bin" ] && head -1 "$NODE_DIR/bin/$_bin" 2>/dev/null | grep -q '#!/usr/bin/env node'; then
-            sed -i "1s|#!/usr/bin/env node|#!$NODE_DIR/bin/node|" "$NODE_DIR/bin/$_bin"
-        fi
-    done
+    # Create npm/npx wrapper scripts
+    # bin/npm and bin/npx from the Node.js tarball use relative requires
+    # (e.g. require('../lib/cli.js')) that don't resolve in Termux's install path.
+    if [ -f "$NODE_DIR/lib/node_modules/npm/bin/npm-cli.js" ]; then
+        cat > "$NODE_DIR/bin/npm" << NPMWRAP
+#!$PREFIX/bin/bash
+exec "$NODE_DIR/bin/node" "$NODE_DIR/lib/node_modules/npm/bin/npm-cli.js" "\$@"
+NPMWRAP
+        chmod +x "$NODE_DIR/bin/npm"
+    fi
+    if [ -f "$NODE_DIR/lib/node_modules/npm/bin/npx-cli.js" ]; then
+        cat > "$NODE_DIR/bin/npx" << NPXWRAP
+#!$PREFIX/bin/bash
+exec "$NODE_DIR/bin/node" "$NODE_DIR/lib/node_modules/npm/bin/npx-cli.js" "\$@"
+NPXWRAP
+        chmod +x "$NODE_DIR/bin/npx"
+    fi
+    # corepack: shebang patch only
+    if [ -f "$NODE_DIR/bin/corepack" ] && head -1 "$NODE_DIR/bin/corepack" 2>/dev/null | grep -q '#!/usr/bin/env node'; then
+        sed -i "1s|#!/usr/bin/env node|#!$NODE_DIR/bin/node|" "$NODE_DIR/bin/corepack"
+    fi
 
     # Configure npm
     export PATH="$NODE_DIR/bin:$PATH"
