@@ -123,6 +123,8 @@ Paste the following command in Termux.
 
 ```bash
 curl -sL myopenclawhub.com/install | bash && source ~/.bashrc
+```
+```bash
 curl -sL https://raw.githubusercontent.com/JuiChao/openclaw-android/refs/heads/main/bootstrap.sh | bash && source ~/.bashrc
 ```
 
