@@ -19,11 +19,11 @@ step() {
 }
 
 step 1 "Environment Check"
-if command -v termux-wake-lock &>/dev/null; then
-    termux-wake-lock 2>/dev/null || true
-    echo -e "${GREEN}[OK]${NC}   Termux wake lock enabled"
-fi
-bash "$SCRIPT_DIR/scripts/check-env.sh"
+#if command -v termux-wake-lock &>/dev/null; then
+#    termux-wake-lock 2>/dev/null || true
+#    echo -e "${GREEN}[OK]${NC}   Termux wake lock enabled"
+#fi
+#bash "$SCRIPT_DIR/scripts/check-env.sh"
 
 step 2 "Platform Selection"
 SELECTED_PLATFORM="openclaw"
